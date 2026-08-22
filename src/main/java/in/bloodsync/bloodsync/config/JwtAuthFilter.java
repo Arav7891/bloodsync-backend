@@ -36,17 +36,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain)
             throws ServletException, IOException {
 
-        // ==========================================
-        // Get Authorization header
-        // ==========================================
+        // Allow CORS preflight requests
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         String authHeader = request.getHeader("Authorization");
 
-        // ==========================================
-        // No JWT
-        // Continue normally
-        // ==========================================
-
+        // No JWT - continue normally.
+        // SecurityConfig decides whether this endpoint is public.
         if (authHeader == null ||
                 !authHeader.startsWith("Bearer ")) {
 
@@ -54,39 +53,19 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        // ==========================================
-        // Extract JWT
-        // ==========================================
-
         String token = authHeader.substring(7);
 
         try {
-
-            // ==========================================
-            // Validate token
-            // ==========================================
 
             if (jwtUtil.isTokenValid(token)
                     && SecurityContextHolder
                     .getContext()
                     .getAuthentication() == null) {
 
-                // ==========================================
-                // Extract email from JWT
-                // ==========================================
-
                 String email = jwtUtil.extractEmail(token);
-
-                // ==========================================
-                // Load user
-                // ==========================================
 
                 UserDetails userDetails =
                         userDetailsService.loadUserByUsername(email);
-
-                // ==========================================
-                // Create authentication
-                // ==========================================
 
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(
@@ -95,18 +74,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                 userDetails.getAuthorities()
                         );
 
-                // ==========================================
-                // Add request details
-                // ==========================================
-
                 authToken.setDetails(
                         new WebAuthenticationDetailsSource()
                                 .buildDetails(request)
                 );
-
-                // ==========================================
-                // Set authentication
-                // ==========================================
 
                 SecurityContextHolder
                         .getContext()
@@ -115,16 +86,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         } catch (Exception e) {
 
-            // Invalid JWT should not crash the request
             System.out.println(
                     "JWT authentication failed: "
                             + e.getMessage()
             );
-        }
 
-        // ==========================================
-        // Continue request
-        // ==========================================
+            // Do NOT reject the request here.
+            // Let SecurityConfig decide whether the endpoint
+            // requires authentication.
+            SecurityContextHolder.clearContext();
+        }
 
         filterChain.doFilter(request, response);
     }

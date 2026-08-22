@@ -15,6 +15,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
+
 @Configuration
 public class SecurityConfig {
 
@@ -29,13 +35,19 @@ public class SecurityConfig {
         this.jwtAuthFilter = jwtAuthFilter;
     }
 
-    // Password Encoder
+    // =========================
+    // PASSWORD ENCODER
+    // =========================
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    // Authentication Provider
+    // =========================
+    // AUTHENTICATION PROVIDER
+    // =========================
+
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
 
@@ -47,7 +59,10 @@ public class SecurityConfig {
         return provider;
     }
 
-    // Authentication Manager
+    // =========================
+    // AUTHENTICATION MANAGER
+    // =========================
+
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration config) throws Exception {
@@ -55,7 +70,46 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 
-    // Security Filter Chain
+    // =========================
+    // CORS CONFIGURATION
+    // =========================
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "http://localhost:5174",
+                "https://bloodsync-frontend.vercel.app"
+        ));
+
+        configuration.setAllowedMethods(List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "OPTIONS"
+        ));
+
+        configuration.setAllowedHeaders(List.of("*"));
+
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
+        source.registerCorsConfiguration("/**", configuration);
+
+        return source;
+    }
+
+    // =========================
+    // SECURITY FILTER CHAIN
+    // =========================
+
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http) throws Exception {
@@ -65,6 +119,9 @@ public class SecurityConfig {
                 // REST API does not use CSRF
                 .csrf(AbstractHttpConfigurer::disable)
 
+                // ENABLE CORS
+                .cors(cors -> {})
+
                 // JWT authentication is stateless
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
@@ -72,12 +129,13 @@ public class SecurityConfig {
                         )
                 )
 
-                // Authorization rules
+                // =========================
+                // AUTHORIZATION RULES
+                // =========================
+
                 .authorizeHttpRequests(auth -> auth
 
-                        // =========================
-                        // CORS PRE-FLIGHT
-                        // =========================
+                        // CORS pre-flight
                         .requestMatchers(
                                 HttpMethod.OPTIONS,
                                 "/**"
@@ -87,21 +145,16 @@ public class SecurityConfig {
                         // USER APIs
                         // =========================
 
-                        // Register normal user
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/users/register"
                         ).permitAll()
 
-                        // Get user by ID
-                        // Example:
-                        // GET /api/users/1
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/users/*"
                         ).permitAll()
 
-                        // Admin registration
                         .requestMatchers(
                                 "/api/users/register-admin"
                         ).hasRole("ADMIN")
@@ -118,20 +171,16 @@ public class SecurityConfig {
                         // DONOR APIs
                         // =========================
 
-                        // View donors
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/donors/**"
                         ).permitAll()
 
-                        // Register donor
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/donors"
                         ).permitAll()
 
-                        // Link donor with user
-                        // PATCH /api/donors/1/link-user/1
                         .requestMatchers(
                                 HttpMethod.PATCH,
                                 "/api/donors/*/link-user/*"
@@ -150,13 +199,11 @@ public class SecurityConfig {
                         // BLOOD REQUESTS
                         // =========================
 
-                        // View blood requests
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/blood-requests/**"
                         ).permitAll()
 
-                        // Create blood request
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/blood-requests"
@@ -164,22 +211,24 @@ public class SecurityConfig {
 
                         // Admin approve
                         .requestMatchers(
+                                HttpMethod.PATCH,
                                 "/api/blood-requests/*/approve"
                         ).hasRole("ADMIN")
 
                         // Admin reject
                         .requestMatchers(
+                                HttpMethod.PATCH,
                                 "/api/blood-requests/*/reject"
                         ).hasRole("ADMIN")
 
-                        // =========================
-                        // EVERYTHING ELSE
-                        // =========================
-
+                        // Everything else requires authentication
                         .anyRequest().authenticated()
                 );
 
-        // JWT filter
+        // =========================
+        // JWT FILTER
+        // =========================
+
         http.addFilterBefore(
                 jwtAuthFilter,
                 UsernamePasswordAuthenticationFilter.class
